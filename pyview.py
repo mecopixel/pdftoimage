@@ -1,4 +1,5 @@
 from email.policy import default
+from importlib.resources import path
 import tkinter as tk            # ウィンドウ作成用
 from tkinter import Variable, filedialog
 from wsgiref.util import setup_testing_defaults  # ファイルを開くダイアログ用
@@ -6,6 +7,9 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont  # 画像データ用
 import numpy as np              # アフィン変換行列演算用
 import os                       # ディレクトリ操作用
 import cv2
+from pathlib import Path
+from pdf2image import convert_from_path
+import PySimpleGUI as sg
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -28,19 +32,53 @@ class Application(tk.Frame):
         self.create_menu()   # メニューの作成
         self.create_widget() # ウィジェットの作成
 
+    def menu_reset_clicked(self, event=None):
+        self.number = 1
+
+    def menu_numberset_clicked(self, event=None):
+        layout =[[sg.InputText(default_text=1,size=(5,1),key='txt1'), sg.Button('OK',key='btn1')]]
+        window = sg.Window('開始番号を入力', layout, size=(100,100))
+        while True:
+            event, values = window.read()
+            if event == sg.WIN_CLOSED: 
+                break
+            elif event == 'btn1':
+                self.number = int(values['txt1'])
+                break
+        window.close()
+
     def menu_open_clicked(self, event=None):
+
         # ファイル→開く
         self.filename = tk.filedialog.askopenfilename(
-            filetypes = [("Image file", ".bmp .png .jpg .tif"), ("Bitmap", ".bmp"), ("PNG", ".png"), ("JPEG", ".jpg"), ("Tiff", ".tif") ], # ファイルフィルタ
+            filetypes = [("all file", ".*")], # ファイルフィルタ
             initialdir = os.getcwd() # カレントディレクトリ
             )
 
+        ext = os.path.splitext(os.path.basename(self.filename))[1]
+        # PDFファイルのパス
+        if ext == '.pdf':
+            image_dir = Path("./image_file")
+            if not os.path.exists(image_dir):
+                # ディレクトリが存在しない場合、ディレクトリを作成する
+                os.makedirs(image_dir)
+
+            pdf_path = Path(self.filename)
+            pages = convert_from_path(str(pdf_path), 200)
+            for i, page in enumerate(pages):
+                file_name = pdf_path.stem + "_{:02d}".format(i + 1) + ".jpg"
+                image_path = image_dir / file_name
+                page.save(str(image_path), "JPEG")
+                if i == 0:
+                    self.filename = Path("./" + str(image_path))
         # 画像ファイルを設定する
         self.set_image(self.filename)
     
     def menu_save_clicked(self, event=None):
+        pil_pdf = self.pil_image.convert("RGB")
         # ファイル→保存
         self.pil_image.save("numbering_" + os.path.basename(self.filename))
+        pil_pdf.save(os.path.splitext(os.path.basename(self.filename))[0] + ".pdf")
 
     def menu_newsave_clicked(self, event=None):
         # ファイル→保存
@@ -49,7 +87,6 @@ class Application(tk.Frame):
 
     def set_undo(self, event=None):
         self.undos.append(self.pil_image.copy()) #undo_listの末尾に今のデータを追加   
-        print(self.undos) 
         if len(self.undos)>20:
             self.undos.pop(0)
 
@@ -60,21 +97,17 @@ class Application(tk.Frame):
 
     def menu_undo_clicked(self, event=None):
         if not self.undos: #undo listが空の場合         
-            print('ERROR: No undo data')
             return
         self.set_redo()
         self.pil_image = self.undos.pop(-1) #undo listから一番最後の値を取得し、削除する。
-        print(self.undos)
         self.number -= 1
         self.redraw_image()
 
     def menu_redo_clicked(self, event=None):
         if not self.redos: #undo listが空の場合         
-            print('ERROR: No redo data')
             return
         self.set_undo()
         self.pil_image = self.redos.pop(-1) #undo listから一番最後の値を取得し、削除する。
-        print(self.redos)
         self.number += 1
         self.redraw_image()
 
@@ -88,8 +121,10 @@ class Application(tk.Frame):
  
         self.file_menu = tk.Menu(self.menu_bar, tearoff = tk.OFF)
         self.font_menu = tk.Menu(self.menu_bar, tearoff = tk.OFF)
+        self.number_menu = tk.Menu(self.menu_bar, tearoff = tk.OFF)
         self.menu_bar.add_cascade(label="File", menu=self.file_menu)
         self.menu_bar.add_cascade(label="Font Size", menu=self.font_menu)
+        self.menu_bar.add_cascade(label="NumberSet", menu=self.number_menu)
 
         self.fontsize = tk.IntVar() # ラジオボタンの値
         self.fontsize.set(32)
@@ -102,6 +137,11 @@ class Application(tk.Frame):
         self.file_menu.add_command(label="New Save", command = self.menu_newsave_clicked, accelerator="Ctrl+N")
         self.file_menu.add_command(label="Undo", command = self.menu_undo_clicked, accelerator="Ctrl+Z")
         self.file_menu.add_command(label="Redo", command = self.menu_redo_clicked, accelerator="Ctrl+Y")
+        self.file_menu.add_command(label="Exit", command = self.menu_quit_clicked)
+
+        self.number_menu.add_command(label="reset", command = self.menu_reset_clicked)
+        self.number_menu.add_command(label="number set", command = self.menu_numberset_clicked)
+
 
         self.menu_bar.bind_all("<Control-o>", self.menu_open_clicked) # ファイルを開くのショートカット(Ctrol-Oボタン)
         self.menu_bar.bind_all("<Control-s>", self.menu_save_clicked) # ファイルを保存のショートカット(Ctrol-Sボタン)
@@ -206,7 +246,6 @@ class Application(tk.Frame):
         x = int(np.floor(image_posi[0]))
         y = int(np.floor(image_posi[1])) 
         font = ImageFont.truetype("arial.ttf", size=self.fontsize.get())
-        print(self.fontsize.get())       
         self.draw.text(
             (x,y),
             str(self.number),
