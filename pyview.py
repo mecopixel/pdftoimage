@@ -1,5 +1,6 @@
+from email.policy import default
 import tkinter as tk            # ウィンドウ作成用
-from tkinter import filedialog
+from tkinter import Variable, filedialog
 from wsgiref.util import setup_testing_defaults  # ファイルを開くダイアログ用
 from PIL import Image, ImageTk, ImageDraw, ImageFont  # 画像データ用
 import numpy as np              # アフィン変換行列演算用
@@ -86,25 +87,27 @@ class Application(tk.Frame):
         self.menu_bar = tk.Menu(self) # Menuクラスからmenu_barインスタンスを生成
  
         self.file_menu = tk.Menu(self.menu_bar, tearoff = tk.OFF)
+        self.font_menu = tk.Menu(self.menu_bar, tearoff = tk.OFF)
         self.menu_bar.add_cascade(label="File", menu=self.file_menu)
+        self.menu_bar.add_cascade(label="Font Size", menu=self.font_menu)
+
+        self.fontsize = tk.IntVar() # ラジオボタンの値
+        self.fontsize.set(32)
+        ### 設定メニュー作成
+        for i in range(26,55,2):
+            self.font_menu.add_radiobutton(label=i, variable = self.fontsize, value=i)
 
         self.file_menu.add_command(label="Open", command = self.menu_open_clicked, accelerator="Ctrl+O")
         self.file_menu.add_command(label="Save", command = self.menu_save_clicked, accelerator="Ctrl+S")
         self.file_menu.add_command(label="New Save", command = self.menu_newsave_clicked, accelerator="Ctrl+N")
         self.file_menu.add_command(label="Undo", command = self.menu_undo_clicked, accelerator="Ctrl+Z")
         self.file_menu.add_command(label="Redo", command = self.menu_redo_clicked, accelerator="Ctrl+Y")
-        
-
-
-        self.file_menu.add_separator() # セパレーターを追加
-        self.file_menu.add_command(label="Exit", command = self.menu_quit_clicked)
 
         self.menu_bar.bind_all("<Control-o>", self.menu_open_clicked) # ファイルを開くのショートカット(Ctrol-Oボタン)
         self.menu_bar.bind_all("<Control-s>", self.menu_save_clicked) # ファイルを保存のショートカット(Ctrol-Sボタン)
         self.menu_bar.bind_all("<Control-z>", self.menu_undo_clicked) # 作業を戻すショートカット(Ctrol-Zボタン)
         self.menu_bar.bind_all("<Control-y>", self.menu_redo_clicked) # 作業を戻すショートカット(Ctrol-Yボタン)
         self.menu_bar.bind_all("<Control-n>", self.menu_newsave_clicked) # 作業を戻すショートカット(Ctrol-Nボタン)
-
 
         self.master.config(menu=self.menu_bar) # メニューバーの配置
  
@@ -202,7 +205,8 @@ class Application(tk.Frame):
         image_posi = np.dot(mat_inv, mouse_posi)     # 座標のアフィン変換
         x = int(np.floor(image_posi[0]))
         y = int(np.floor(image_posi[1])) 
-        font = ImageFont.truetype("arial.ttf", 32)       
+        font = ImageFont.truetype("arial.ttf", size=self.fontsize.get())
+        print(self.fontsize.get())       
         self.draw.text(
             (x,y),
             str(self.number),
