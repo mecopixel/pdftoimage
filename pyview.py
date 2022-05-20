@@ -32,6 +32,12 @@ class Application(tk.Frame):
         self.create_menu()   # メニューの作成
         self.create_widget() # ウィジェットの作成
 
+        self.image_dir = Path("./image_file")
+
+        if not os.path.exists(self.image_dir):
+            # ディレクトリが存在しない場合、ディレクトリを作成する
+            os.makedirs(self.image_dir)
+
     def menu_reset_clicked(self, event=None):
         self.number = 1
 
@@ -58,16 +64,11 @@ class Application(tk.Frame):
         ext = os.path.splitext(os.path.basename(self.filename))[1]
         # PDFファイルのパス
         if ext == '.pdf':
-            image_dir = Path("./image_file")
-            if not os.path.exists(image_dir):
-                # ディレクトリが存在しない場合、ディレクトリを作成する
-                os.makedirs(image_dir)
-
             pdf_path = Path(self.filename)
             pages = convert_from_path(str(pdf_path), 200)
             for i, page in enumerate(pages):
                 file_name = pdf_path.stem + "_{:02d}".format(i + 1) + ".jpg"
-                image_path = image_dir / file_name
+                image_path = self.image_dir / file_name
                 page.save(str(image_path), "JPEG")
                 if i == 0:
                     self.filename = Path("./" + str(image_path))
@@ -174,6 +175,7 @@ class Application(tk.Frame):
         self.master.bind("<Motion>", self.mouse_move)                       # MouseMove
         self.master.bind("<B1-Motion>", self.mouse_move_left)               # MouseMove（左ボタンを押しながら移動）
         self.master.bind("<Button-1>", self.mouse_down_left)                # MouseDown（左ボタン）
+        # self.master.bind("<Button-2>", self.mouse_down_right)                # MouseDown（右ボタン）
         self.master.bind("<Double-Button-1>", self.mouse_double_click_left) # MouseDoubleClick（左ボタン）
         self.master.bind("<MouseWheel>", self.mouse_wheel)                  # MouseWheel
 
@@ -203,7 +205,6 @@ class Application(tk.Frame):
         ''' マウスの移動時 '''
         # マウス座標
         self.mouse_position["text"] = f"mouse(x, y) = ({event.x: 4d}, {event.y: 4d})"
-        
         if self.pil_image == None:
             return
 
@@ -230,7 +231,27 @@ class Application(tk.Frame):
 
     def mouse_down_left(self, event):
         ''' マウスの左ボタンを押した '''
+        if self.pil_image == None:
+            return
+        
+        self.redraw_image() # 再描画
         self.__old_event = event
+
+    def mouse_down_right(self, event):
+
+        '''マウスの右ボタンを押した'''
+        self.set_undo()
+        if self.pil_image == None:
+            return
+        
+        self.draw = ImageDraw.Draw(self.pil_image)
+        mouse_posi = np.array([event.x, event.y, 1]) # マウス座標(numpyのベクトル)
+        mat_inv = np.linalg.inv(self.mat_affine)     # 逆行列（画像→Cancasの変換からCanvas→画像の変換へ）
+        image_posi = np.dot(mat_inv, mouse_posi)     # 座標のアフィン変換
+        x = int(np.floor(image_posi[0]))
+        y = int(np.floor(image_posi[1]))
+        self.draw.line()
+        self.redraw_image() # 再描画
 
     def mouse_double_click_left(self, event):
         ''' マウスの左ボタンをダブルクリック '''
@@ -246,6 +267,8 @@ class Application(tk.Frame):
         x = int(np.floor(image_posi[0]))
         y = int(np.floor(image_posi[1])) 
         font = ImageFont.truetype("arial.ttf", size=self.fontsize.get())
+        if self.number < 0:
+            self.number = 1 # ０以下にならないように
         self.draw.text(
             (x,y),
             str(self.number),
