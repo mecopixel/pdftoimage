@@ -1,6 +1,7 @@
 import tkinter as tk            # ウィンドウ作成用
-from tkinter import filedialog  # ファイルを開くダイアログ用
-from PIL import Image, ImageTk  # 画像データ用
+from tkinter import filedialog
+from wsgiref.util import setup_testing_defaults  # ファイルを開くダイアログ用
+from PIL import Image, ImageTk, ImageDraw, ImageFont  # 画像データ用
 import numpy as np              # アフィン変換行列演算用
 import os                       # ディレクトリ操作用
 import cv2
@@ -13,6 +14,10 @@ class Application(tk.Frame):
         self.pil_image = None           # 表示する画像データ
         self.my_title = "Image Viewer"  # タイトル
         self.back_color = "#008B8B"     # 背景色
+        self.number = 1
+        self.draw = None
+        self.undos = []
+        self.redos = []
 
         # ウィンドウの設定
         self.master.title(self.my_title)    # タイトル
@@ -30,6 +35,41 @@ class Application(tk.Frame):
 
         # 画像ファイルを設定する
         self.set_image(filename)
+    
+    def menu_save_clicked(self, event=None):
+        # ファイル→保存
+        self.pil_image.save("numbering_" + self.pil_image.filename)
+
+    def set_undo(self, event=None):
+        self.undos.append(self.pil_image.copy()) #undo_listの末尾に今のデータを追加   
+        print(self.undos) 
+        if len(self.undos)>20:
+            self.undos.pop(0)
+
+    def set_redo(self, event=None):
+        self.redos.append(self.pil_image.copy())
+        if len(self.redos)>20:
+            self.redos.pop(0)
+
+    def menu_undo_clicked(self, event=None):
+        if not self.undos: #undo listが空の場合         
+            print('ERROR: No undo data')
+            return
+        self.set_redo()
+        self.pil_image = self.undos.pop(-1) #undo listから一番最後の値を取得し、削除する。
+        print(self.undos)
+        self.number -= 1
+        self.redraw_image()
+
+    def menu_redo_clicked(self, event=None):
+        if not self.redos: #undo listが空の場合         
+            print('ERROR: No redo data')
+            return
+        self.set_undo()
+        self.pil_image = self.redos.pop(-1) #undo listから一番最後の値を取得し、削除する。
+        print(self.redos)
+        self.number += 1
+        self.redraw_image()
 
     def menu_quit_clicked(self):
         # ウィンドウを閉じる
@@ -43,10 +83,18 @@ class Application(tk.Frame):
         self.menu_bar.add_cascade(label="File", menu=self.file_menu)
 
         self.file_menu.add_command(label="Open", command = self.menu_open_clicked, accelerator="Ctrl+O")
+        self.file_menu.add_command(label="Save", command = self.menu_save_clicked, accelerator="Ctrl+S")
+        self.file_menu.add_command(label="Undo", command = self.menu_undo_clicked, accelerator="Ctrl+Z")
+        self.file_menu.add_command(label="Redo", command = self.menu_redo_clicked, accelerator="Ctrl+Y")
+
+
         self.file_menu.add_separator() # セパレーターを追加
         self.file_menu.add_command(label="Exit", command = self.menu_quit_clicked)
 
         self.menu_bar.bind_all("<Control-o>", self.menu_open_clicked) # ファイルを開くのショートカット(Ctrol-Oボタン)
+        self.menu_bar.bind_all("<Control-s>", self.menu_save_clicked) # ファイルを保存のショートカット(Ctrol-Sボタン)
+        self.menu_bar.bind_all("<Control-z>", self.menu_undo_clicked) # 作業を戻すショートカット(Ctrol-Zボタン)
+        self.menu_bar.bind_all("<Control-y>", self.menu_redo_clicked) # 作業を戻すショートカット(Ctrol-Zボタン)
 
         self.master.config(menu=self.menu_bar) # メニューバーの配置
  
@@ -133,9 +181,26 @@ class Application(tk.Frame):
 
     def mouse_double_click_left(self, event):
         ''' マウスの左ボタンをダブルクリック '''
+        self.set_undo()
         if self.pil_image == None:
             return
-        self.zoom_fit(self.pil_image.width, self.pil_image.height)
+        # self.zoom_fit(self.pil_image.width, self.pil_image.height)
+        self.draw = ImageDraw.Draw(self.pil_image)
+        # 画像座標
+        mouse_posi = np.array([event.x, event.y, 1]) # マウス座標(numpyのベクトル)
+        mat_inv = np.linalg.inv(self.mat_affine)     # 逆行列（画像→Cancasの変換からCanvas→画像の変換へ）
+        image_posi = np.dot(mat_inv, mouse_posi)     # 座標のアフィン変換
+        x = int(np.floor(image_posi[0]))
+        y = int(np.floor(image_posi[1])) 
+        font = ImageFont.truetype("arial.ttf", 32)       
+        self.draw.text(
+            (x,y),
+            str(self.number),
+            font = font,
+            fill = 'red',
+            anchor = 'mm'
+        )
+        self.number += 1
         self.redraw_image() # 再描画
 
     def mouse_wheel(self, event):
