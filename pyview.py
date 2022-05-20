@@ -16,6 +16,7 @@ class Application(tk.Frame):
         self.back_color = "#008B8B"     # 背景色
         self.number = 1
         self.draw = None
+        self.filename = None
         self.undos = []
         self.redos = []
 
@@ -28,17 +29,22 @@ class Application(tk.Frame):
 
     def menu_open_clicked(self, event=None):
         # ファイル→開く
-        filename = tk.filedialog.askopenfilename(
+        self.filename = tk.filedialog.askopenfilename(
             filetypes = [("Image file", ".bmp .png .jpg .tif"), ("Bitmap", ".bmp"), ("PNG", ".png"), ("JPEG", ".jpg"), ("Tiff", ".tif") ], # ファイルフィルタ
             initialdir = os.getcwd() # カレントディレクトリ
             )
 
         # 画像ファイルを設定する
-        self.set_image(filename)
+        self.set_image(self.filename)
     
     def menu_save_clicked(self, event=None):
         # ファイル→保存
-        self.pil_image.save("numbering_" + self.pil_image.filename)
+        self.pil_image.save("numbering_" + os.path.basename(self.filename))
+
+    def menu_newsave_clicked(self, event=None):
+        # ファイル→保存
+        filename = filedialog.asksaveasfilename()
+        self.pil_image.save(filename)
 
     def set_undo(self, event=None):
         self.undos.append(self.pil_image.copy()) #undo_listの末尾に今のデータを追加   
@@ -84,8 +90,10 @@ class Application(tk.Frame):
 
         self.file_menu.add_command(label="Open", command = self.menu_open_clicked, accelerator="Ctrl+O")
         self.file_menu.add_command(label="Save", command = self.menu_save_clicked, accelerator="Ctrl+S")
+        self.file_menu.add_command(label="New Save", command = self.menu_newsave_clicked, accelerator="Ctrl+N")
         self.file_menu.add_command(label="Undo", command = self.menu_undo_clicked, accelerator="Ctrl+Z")
         self.file_menu.add_command(label="Redo", command = self.menu_redo_clicked, accelerator="Ctrl+Y")
+        
 
 
         self.file_menu.add_separator() # セパレーターを追加
@@ -94,7 +102,9 @@ class Application(tk.Frame):
         self.menu_bar.bind_all("<Control-o>", self.menu_open_clicked) # ファイルを開くのショートカット(Ctrol-Oボタン)
         self.menu_bar.bind_all("<Control-s>", self.menu_save_clicked) # ファイルを保存のショートカット(Ctrol-Sボタン)
         self.menu_bar.bind_all("<Control-z>", self.menu_undo_clicked) # 作業を戻すショートカット(Ctrol-Zボタン)
-        self.menu_bar.bind_all("<Control-y>", self.menu_redo_clicked) # 作業を戻すショートカット(Ctrol-Zボタン)
+        self.menu_bar.bind_all("<Control-y>", self.menu_redo_clicked) # 作業を戻すショートカット(Ctrol-Yボタン)
+        self.menu_bar.bind_all("<Control-n>", self.menu_newsave_clicked) # 作業を戻すショートカット(Ctrol-Nボタン)
+
 
         self.master.config(menu=self.menu_bar) # メニューバーの配置
  
