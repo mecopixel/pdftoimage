@@ -65,7 +65,7 @@ class Application(tk.Frame):
         # PDFファイルのパス
         if ext == '.pdf':
             pdf_path = Path(self.filename)
-            pages = convert_from_path(str(pdf_path), 200)
+            pages = convert_from_path(str(pdf_path), 150)
             for i, page in enumerate(pages):
                 file_name = pdf_path.stem + "_{:02d}".format(i + 1) + ".jpg"
                 image_path = self.image_dir / file_name
@@ -185,6 +185,7 @@ class Application(tk.Frame):
             return
         # PIL.Imageで開く
         self.pil_image = Image.open(filename)
+        self.pil_image.resize((420,297))
         # 画像全体に表示するようにアフィン変換行列を設定
         self.zoom_fit(self.pil_image.width, self.pil_image.height)
         # 画像の表示

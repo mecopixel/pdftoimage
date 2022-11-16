@@ -10,7 +10,7 @@ from pdf2image import convert_from_path
 pdf_path = Path("./" + "pdf_file/05B31365A1 MTL-XPS-PLATE.pdf")
 
 # PDF -> Image に変換（150dpi）
-pages = convert_from_path(str(pdf_path), 300)
+pages = convert_from_path(str(pdf_path), 150)
 
 # 画像ファイルを１ページずつ保存
 image_dir = Path("./image_file")
